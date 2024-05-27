@@ -8,11 +8,12 @@ import (
 	"errors"
 	"fmt"
 
-	"golang.org/x/image/webp"
 	"image"
 	_ "image/gif"
 	_ "image/jpeg"
 	"image/png"
+
+	"golang.org/x/image/webp"
 
 	"os"
 	"strings"
@@ -157,6 +158,170 @@ func getImageTypeFromBase64(base64Str string) string {
 	default:
 		return "Unknown"
 	}
+}
+
+func (c *ChatGPT) ChatWithAi30Context(question string, model string) (answer string, err error) {
+	question = question + "."
+	if tokenizer.MustCalToken(question) > c.maxQuestionLen {
+		return "", OverMaxQuestionLength
+	}
+	if c.ChatContext.seqTimes >= c.ChatContext.maxSeqTimes {
+		if c.ChatContext.maintainSeqTimes {
+			c.ChatContext.PollConversation()
+		} else {
+			return "", OverMaxSequenceTimes
+		}
+	}
+	var promptTable []string
+	promptTable = append(promptTable, c.ChatContext.background)
+	promptTable = append(promptTable, c.ChatContext.preset)
+	for _, v := range c.ChatContext.old {
+		if v.Role == c.ChatContext.humanRole {
+			promptTable = append(promptTable, "\n"+v.Role.Name+": "+v.Prompt)
+		} else {
+			promptTable = append(promptTable, v.Role.Name+": "+v.Prompt)
+		}
+	}
+	promptTable = append(promptTable, "\n"+c.ChatContext.restartSeq+question)
+	prompt := strings.Join(promptTable, "\n")
+	prompt += c.ChatContext.startSeq
+	// 删除对话，直到prompt的长度满足条件
+	for tokenizer.MustCalToken(prompt) > c.maxText {
+		if len(c.ChatContext.old) > 1 { // 至少保留一条记录
+			c.ChatContext.PollConversation() // 删除最旧的一条对话
+			// 重新构建 prompt，计算长度
+			promptTable = promptTable[1:] // 删除promptTable中对应的对话
+			prompt = strings.Join(promptTable, "\n") + c.ChatContext.startSeq
+		} else {
+			break // 如果已经只剩一条记录，那么跳出循环
+		}
+	}
+	//	if tokenizer.MustCalToken(prompt) > c.maxText-c.maxAnswerLen {
+	//		return "", OverMaxTextLength
+	//	}
+	// model := public.Config.Model
+	userId := c.userId
+	if public.Config.AzureOn {
+		userId = ""
+	}
+	// if isModelSupportedChatCompletions(model) {
+	req := openai.ChatCompletionRequest{
+		Model: model,
+		Messages: []openai.ChatCompletionMessage{
+			{
+				Role:    "user",
+				Content: prompt,
+			},
+		},
+		MaxTokens:   c.maxAnswerLen,
+		Temperature: 0.6,
+		User:        userId,
+	}
+	resp, err := c.client.CreateChatCompletion(c.ctx, req)
+	if err != nil {
+		return "", err
+	}
+	resp.Choices[0].Message.Content = formatAnswer(resp.Choices[0].Message.Content)
+	c.ChatContext.old = append(c.ChatContext.old, conversation{
+		Role:   c.ChatContext.humanRole,
+		Prompt: question,
+	})
+	c.ChatContext.old = append(c.ChatContext.old, conversation{
+		Role:   c.ChatContext.aiRole,
+		Prompt: resp.Choices[0].Message.Content,
+	})
+	c.ChatContext.seqTimes++
+	return resp.Choices[0].Message.Content, nil
+	//	} else {
+	//		req := openai.CompletionRequest{
+	//			Model:       model,
+	//			MaxTokens:   c.maxAnswerLen,
+	//			Prompt:      prompt,
+	//			Temperature: 0.6,
+	//			User:        c.userId,
+	//			Stop:        []string{c.ChatContext.aiRole.Name + ":", c.ChatContext.humanRole.Name + ":"},
+	//		}
+	//		resp, err := c.client.CreateCompletion(c.ctx, req)
+	//		if err != nil {
+	//			return "", err
+	//		}
+	//		resp.Choices[0].Text = formatAnswer(resp.Choices[0].Text)
+	//		c.ChatContext.old = append(c.ChatContext.old, conversation{
+	//			Role:   c.ChatContext.humanRole,
+	//			Prompt: question,
+	//		})
+	//		c.ChatContext.old = append(c.ChatContext.old, conversation{
+	//			Role:   c.ChatContext.aiRole,
+	//			Prompt: resp.Choices[0].Text,
+	//		})
+	//		c.ChatContext.seqTimes++
+	//		return resp.Choices[0].Text, nil
+	//	}
+}
+func (c *ChatGPT) GenerateImageAi302(ctx context.Context, prompt string, model string) (string, error) {
+	// model := public.Config.Model
+	imageModel := public.Config.ImageModel
+	if isModelSupportedChatCompletions(model) {
+		req := openai.ImageRequest{
+			Prompt:         prompt,
+			Model:          imageModel,
+			Size:           openai.CreateImageSize1024x1024,
+			ResponseFormat: openai.CreateImageResponseFormatB64JSON,
+			N:              1,
+			User:           c.userId,
+		}
+		respBase64, err := c.client.CreateImage(c.ctx, req)
+		if err != nil {
+			return "", err
+		}
+		imgBytes, err := base64.StdEncoding.DecodeString(respBase64.Data[0].B64JSON)
+		if err != nil {
+			return "", err
+		}
+
+		r := bytes.NewReader(imgBytes)
+
+		// dall-e-3 返回的是 WebP 格式的图片，需要判断处理
+		imgType := getImageTypeFromBase64(respBase64.Data[0].B64JSON)
+		var imgData image.Image
+		var imgErr error
+		if imgType == "WebP" {
+			imgData, imgErr = webp.Decode(r)
+		} else {
+			imgData, _, imgErr = image.Decode(r)
+		}
+		if imgErr != nil {
+			return "", imgErr
+		}
+
+		imageName := time.Now().Format("20060102-150405") + ".png"
+		clientId, _ := ctx.Value(public.DingTalkClientIdKeyName).(string)
+		client := public.DingTalkClientManager.GetClientByOAuthClientID(clientId)
+		mediaResult, uploadErr := &dingbot.MediaUploadResult{}, errors.New(fmt.Sprintf("unknown clientId: %s", clientId))
+		if client != nil {
+			mediaResult, uploadErr = client.UploadMedia(imgBytes, imageName, dingbot.MediaTypeImage, dingbot.MimeTypeImagePng)
+		}
+
+		err = os.MkdirAll("data/images", 0755)
+		if err != nil {
+			return "", err
+		}
+		file, err := os.Create("data/images/" + imageName)
+		if err != nil {
+			return "", err
+		}
+		defer file.Close()
+
+		if err := png.Encode(file, imgData); err != nil {
+			return "", err
+		}
+		if uploadErr == nil {
+			return mediaResult.MediaID, nil
+		} else {
+			return public.Config.ServiceURL + "/images/" + imageName, nil
+		}
+	}
+	return "", nil
 }
 
 func (c *ChatGPT) ChatWithContext(question string) (answer string, err error) {

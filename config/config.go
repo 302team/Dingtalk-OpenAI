@@ -80,6 +80,24 @@ type Configuration struct {
 	AzureOpenAIToken    string `yaml:"azure_openai_token"`
 	// 钉钉应用鉴权凭据
 	Credentials []Credential `yaml:"credentials"`
+	// Mysql
+	DBDialect      string `yaml:"db_dialect"`
+	DBDatabase     string `yaml:"db_database"`
+	DBUser         string `yaml:"db_user"`
+	DBPassword     string `yaml:"db_password"`
+	DBCharset      string `yaml:"db_charset"`
+	DBHost         string `yaml:"db_host"`
+	DBPort         int    `yaml:"db_port"`
+	DBMaxIdleConns int    `yaml:"db_max_idle_conns"`
+	DBMaxOpenConns int    `yaml:"db_max_open_conns"`
+	DBLocal        string `yaml:"db_local"`
+	// Redis
+	RedisMaxIdle   int    `yaml:"redis_max_idle"`
+	RedisMaxActive int    `yaml:"redis_max_active"`
+	RedisIdleTime  int    `yaml:"redis_idle_time"`
+	RedisHost      string `yaml:"redis_host"`
+	RedisPort      int    `yaml:"redis_port"`
+	RedisPassword  string `yaml:"redis_password"`
 }
 
 var config *Configuration
@@ -261,9 +279,9 @@ func LoadConfig() *Configuration {
 		config.ChatType = "0"
 	}
 	if !config.AzureOn {
-		if config.ApiKey == "" {
-			panic("config err: api key required")
-		}
+		// if config.ApiKey == "" {
+		// 	panic("config err: api key required")
+		// }
 	}
 	if config.MaxQuestionLen == 0 {
 		config.MaxQuestionLen = 4096

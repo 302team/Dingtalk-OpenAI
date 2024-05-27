@@ -25,6 +25,36 @@ type ChatGPT struct {
 	ChatContext *ChatContext
 }
 
+func NewAi302(userId string, model string, apiKey string) *ChatGPT {
+	var ctx context.Context
+	var cancel func()
+
+	ctx, cancel = context.WithTimeout(context.Background(), 600*time.Second)
+	timeOutChan := make(chan struct{}, 1)
+	go func() {
+		<-ctx.Done()
+		timeOutChan <- struct{}{} // 发送超时信号，或是提示结束，用于聊天机器人场景，配合GetTimeOutChan() 使用
+	}()
+
+	config := openai.DefaultConfig(apiKey)
+	config.BaseURL = public.Config.BaseURL + "/v1"
+
+	return &ChatGPT{
+		client:         openai.NewClientWithConfig(config),
+		ctx:            ctx,
+		userId:         userId,
+		maxQuestionLen: public.Config.MaxQuestionLen, // 最大问题长度
+		maxAnswerLen:   public.Config.MaxAnswerLen,   // 最大答案长度
+		maxText:        public.Config.MaxText,        // 最大文本 = 问题 + 回答, 接口限制
+		timeOut:        public.Config.SessionTimeout,
+		doneChan:       timeOutChan,
+		cancel: func() {
+			cancel()
+		},
+		ChatContext: NewContext(),
+	}
+}
+
 func New(userId string) *ChatGPT {
 	var ctx context.Context
 	var cancel func()

@@ -141,6 +141,17 @@ func CheckRequestWithCredentials(ts, sg string) (clientId string, pass bool) {
 	return
 }
 
+func CheckRequestsWithAi302Credentials(ts, sg, clientSecret string) (pass bool) {
+	pass = false
+	stringToSign := fmt.Sprintf("%s\n%s", ts, clientSecret)
+	mac := hmac.New(sha256.New, []byte(clientSecret))
+	_, _ = mac.Write([]byte(stringToSign))
+	if base64.StdEncoding.EncodeToString(mac.Sum(nil)) == sg {
+		return true
+	}
+	return false
+}
+
 func CheckRequest(ts, sg string) bool {
 	appSecrets := Config.AppSecrets
 	// 如果没有指定或者outgoing类型机器人下使用，则默认不做校验
