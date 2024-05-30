@@ -349,6 +349,16 @@ func DoAi302Request(msgObj dingbot.ReceiveMsg, wehbookID string, c *gin.Context,
 
 	// 通过 context 传递 OAuth ClientID，用于后续流程中调用钉钉OpenAPI
 	c.Set(public.DingTalkClientIdKeyName, robotMapping.DingtalkClientID)
+	// 图片分析暂时不支持
+	if msgObj.Msgtype == "picture" || msgObj.Msgtype == "richText" {
+		logger.Info(fmt.Sprintf("🙋 %s 不支持分析图片，userid：%#v，消息: %#v", msgObj.SenderNick, msgObj.SenderStaffId, msgObj.Text.Content))
+		_, err := msgObj.ReplyToDingtalk(string(dingbot.MARKDOWN), "**🤷 抱歉，暂不支持分析图片！**")
+		if err != nil {
+			logger.Warning(fmt.Errorf("send message error: %v", err))
+			return
+		}
+		return
+	}
 	// 再校验回调参数是否有价值
 	if msgObj.Text.Content == "" || msgObj.ChatbotUserID == "" {
 		logger.Warning("从钉钉回调过来的内容为空，根据过往的经验，或许重新创建一下机器人，能解决这个问题")
@@ -457,7 +467,7 @@ func DoAi302Request(msgObj dingbot.ReceiveMsg, wehbookID string, c *gin.Context,
 				}
 				return
 			}
-			err = process.ProcessAi302Request(&msgObj, modelName, token.Value)
+			err = process.ProcessAi302Request(&msgObj, modelName, token.Value, robotMapping.DingtalkClientID, robotMapping.DingtalkClientSecret)
 			if err != nil {
 				logger.Warning(fmt.Errorf("process request: %v", err))
 				return

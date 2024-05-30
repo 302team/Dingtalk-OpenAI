@@ -7,6 +7,9 @@ import (
 	"encoding/gob"
 	"errors"
 	"fmt"
+	"io"
+	"net/http"
+	"regexp"
 
 	"image"
 	_ "image/gif"
@@ -22,6 +25,7 @@ import (
 	"github.com/pandodao/tokenizer-go"
 	openai "github.com/sashabaranov/go-openai"
 
+	"github.com/eryajf/chatgpt-dingtalk/config"
 	"github.com/eryajf/chatgpt-dingtalk/pkg/dingbot"
 	"github.com/eryajf/chatgpt-dingtalk/public"
 )
@@ -160,7 +164,7 @@ func getImageTypeFromBase64(base64Str string) string {
 	}
 }
 
-func (c *ChatGPT) ChatWithAi30Context(question string, model string) (answer string, err error) {
+func (c *ChatGPT) ChatWithAi30Context(question string, model, dingTalkClientID, dingTalkClientSecret string) (answer string, err error) {
 	question = question + "."
 	if tokenizer.MustCalToken(question) > c.maxQuestionLen {
 		return "", OverMaxQuestionLength
@@ -222,6 +226,33 @@ func (c *ChatGPT) ChatWithAi30Context(question string, model string) (answer str
 		return "", err
 	}
 	resp.Choices[0].Message.Content = formatAnswer(resp.Choices[0].Message.Content)
+	// 图床上传
+	bodyString := resp.Choices[0].Message.Content
+	// regexPattern := `https://.+?\.webp`
+	regexPattern := `https://.+?\.(png|jpg|jpeg|webp|gif|svg|ico|mp3|ogg|wav|acc|vorbis|silk|mp4|webm|avi|rmvb|3gp|flv)`
+	// 编译正则表达式
+	regex, _ := regexp.Compile(regexPattern)
+	// 使用正则表达式查找匹配项
+	matches := regex.FindAllString(bodyString, -1)
+	client := dingbot.NewDingTalkClient(config.Credential{ClientID: dingTalkClientID, ClientSecret: dingTalkClientSecret})
+	mediaResult, uploadErr := &dingbot.MediaUploadResult{}, errors.New(fmt.Sprintf("unknown clientId: %s", dingTalkClientID))
+	for _, match := range matches {
+		if strings.Contains(match, "download") {
+			continue
+		}
+		imgBytes, err := FetchStatic(match)
+		if err == nil {
+			imageName := time.Now().Format("20060102-150405") + ".png"
+			mediaResult, uploadErr = client.UploadMedia(imgBytes, imageName, dingbot.MediaTypeImage, dingbot.MimeTypeImagePng)
+			fmt.Printf("%+v\n %+v\n", mediaResult, uploadErr)
+			if uploadErr == nil {
+				bodyString = strings.Replace(bodyString, match, mediaResult.MediaID+"\n", 1)
+			}
+		}
+		break
+	}
+	resp.Choices[0].Message.Content = bodyString
+
 	c.ChatContext.old = append(c.ChatContext.old, conversation{
 		Role:   c.ChatContext.humanRole,
 		Prompt: question,
@@ -505,4 +536,26 @@ func WithMaintainSeqTimes(maintain bool) ChatContextOption {
 	return func(c *ChatContext) {
 		c.maintainSeqTimes = maintain
 	}
+}
+
+func FetchStatic(url string) ([]byte, error) {
+	// 发送GET请求到URL
+	resp, err := http.Get(url)
+	if err != nil {
+		return nil, err
+	}
+	defer resp.Body.Close()
+
+	// 检查响应的状态码
+	if resp.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf("server returned non-200 status code: %d", resp.StatusCode)
+	}
+
+	// 读取响应体内容
+	data, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return nil, err
+	}
+
+	return data, nil
 }

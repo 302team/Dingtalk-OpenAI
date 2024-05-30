@@ -104,7 +104,7 @@ func ProcessRequest(rmsg *dingbot.ReceiveMsg) error {
 }
 
 // ProcessRequest 分析处理请求逻辑
-func ProcessAi302Request(rmsg *dingbot.ReceiveMsg, model string, apiKey string) error {
+func ProcessAi302Request(rmsg *dingbot.ReceiveMsg, model string, apiKey string, dingTalkClientID, dingTalkClientSecret string) error {
 	if CheckRequestTimes(rmsg) {
 		content := strings.TrimSpace(rmsg.Text.Content)
 		timeoutStr := ""
@@ -184,9 +184,9 @@ func ProcessAi302Request(rmsg *dingbot.ReceiveMsg, model string, apiKey string) 
 			}
 		default:
 			if public.FirstCheck(rmsg) {
-				return DoAi302("串聊", rmsg, model, apiKey)
+				return DoAi302("串聊", rmsg, model, apiKey, dingTalkClientID, dingTalkClientSecret)
 			} else {
-				return DoAi302("单聊", rmsg, model, apiKey)
+				return DoAi302("单聊", rmsg, model, apiKey, dingTalkClientID, dingTalkClientSecret)
 			}
 		}
 	}
@@ -194,7 +194,7 @@ func ProcessAi302Request(rmsg *dingbot.ReceiveMsg, model string, apiKey string) 
 }
 
 // 执行处理请求
-func DoAi302(mode string, rmsg *dingbot.ReceiveMsg, model string, apiKey string) error {
+func DoAi302(mode string, rmsg *dingbot.ReceiveMsg, model string, apiKey, dingTalkClientID, dingTalkClientSecret string) error {
 	// 先把模式注入
 	public.UserService.SetUserMode(rmsg.GetSenderIdentifier(), mode)
 	switch mode {
@@ -210,18 +210,20 @@ func DoAi302(mode string, rmsg *dingbot.ReceiveMsg, model string, apiKey string)
 		if err != nil {
 			logger.Error("往MySQL新增数据失败,错误信息：", err)
 		}
-		reply, err := chatgpt.SingleQaAi302(rmsg.Text.Content, rmsg.GetSenderIdentifier(), model, apiKey)
+		reply, err := chatgpt.SingleQaAi302(rmsg.Text.Content, rmsg.GetSenderIdentifier(), model, apiKey, dingTalkClientID, dingTalkClientSecret)
 		if err != nil {
 			logger.Info(fmt.Errorf("gpt request error: %v", err))
 			if strings.Contains(fmt.Sprintf("%v", err), "maximum question length exceeded") {
 				public.UserService.ClearUserSessionContext(rmsg.GetSenderIdentifier())
-				_, err = rmsg.ReplyToDingtalk(string(dingbot.MARKDOWN), fmt.Sprintf("[Wrong] 请求 OpenAI 失败了\n\n> 错误信息:%v\n\n> 已超过最大文本限制，请缩短提问文字的字数。", err))
+				// _, err = rmsg.ReplyToDingtalk(string(dingbot.MARKDOWN), fmt.Sprintf("[Wrong] 请求 OpenAI 失败了\n\n> 错误信息:%v\n\n> 已超过最大文本限制，请缩短提问文字的字数。", err))
+				_, err = rmsg.ReplyToDingtalk(string(dingbot.MARKDOWN), fmt.Sprintf("[Wrong] 请求失败了\n\n> \n\n> 已超过最大文本限制，请缩短提问文字的字数。", err))
 				if err != nil {
 					logger.Warning(fmt.Errorf("send message error: %v", err))
 					return err
 				}
 			} else {
-				_, err = rmsg.ReplyToDingtalk(string(dingbot.MARKDOWN), fmt.Sprintf("[Wrong] 请求 OpenAI 失败了\n\n> 错误信息:%v", err))
+				// _, err = rmsg.ReplyToDingtalk(string(dingbot.MARKDOWN), fmt.Sprintf("[Wrong] 请求 OpenAI 失败了\n\n> 错误信息:%v", err))
+				_, err = rmsg.ReplyToDingtalk(string(dingbot.MARKDOWN), "[Wrong] 网络请求失败，可能是机器人被禁用或余额不足。")
 				if err != nil {
 					logger.Warning(fmt.Errorf("send message error: %v", err))
 					return err
@@ -269,18 +271,20 @@ func DoAi302(mode string, rmsg *dingbot.ReceiveMsg, model string, apiKey string)
 		if err != nil {
 			logger.Error("往MySQL新增数据失败,错误信息：", err)
 		}
-		cli, reply, err := chatgpt.ContextQaAi302(rmsg.Text.Content, rmsg.GetSenderIdentifier(), model, apiKey)
+		cli, reply, err := chatgpt.ContextQaAi302(rmsg.Text.Content, rmsg.GetSenderIdentifier(), model, apiKey, dingTalkClientID, dingTalkClientSecret)
 		if err != nil {
 			logger.Info(fmt.Sprintf("gpt request error: %v", err))
 			if strings.Contains(fmt.Sprintf("%v", err), "maximum text length exceeded") {
 				public.UserService.ClearUserSessionContext(rmsg.GetSenderIdentifier())
-				_, err = rmsg.ReplyToDingtalk(string(dingbot.MARKDOWN), fmt.Sprintf("[Wrong] 请求 OpenAI 失败了\n\n> 错误信息:%v\n\n> 串聊已超过最大文本限制，对话已重置，请重新发起。", err))
+				// _, err = rmsg.ReplyToDingtalk(string(dingbot.MARKDOWN), fmt.Sprintf("[Wrong] 请求 OpenAI 失败了\n\n> 错误信息:%v\n\n> 串聊已超过最大文本限制，对话已重置，请重新发起。", err))
+				_, err = rmsg.ReplyToDingtalk(string(dingbot.MARKDOWN), fmt.Sprintf("[Wrong] 请求失败了\n\n> \n\n> 已超过最大文本限制，请缩短提问文字的字数。", err))
 				if err != nil {
 					logger.Warning(fmt.Errorf("send message error: %v", err))
 					return err
 				}
 			} else {
-				_, err = rmsg.ReplyToDingtalk(string(dingbot.MARKDOWN), fmt.Sprintf("[Wrong] 请求 OpenAI 失败了\n\n> 错误信息:%v", err))
+				// _, err = rmsg.ReplyToDingtalk(string(dingbot.MARKDOWN), fmt.Sprintf("[Wrong] 请求 OpenAI 失败了\n\n> 错误信息:%v", err))
+				_, err = rmsg.ReplyToDingtalk(string(dingbot.MARKDOWN), "[Wrong] 网络请求失败，可能是机器人被禁用或余额不足。")
 				if err != nil {
 					logger.Warning(fmt.Errorf("send message error: %v", err))
 					return err
