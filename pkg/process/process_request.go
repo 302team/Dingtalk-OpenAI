@@ -104,7 +104,7 @@ func ProcessRequest(rmsg *dingbot.ReceiveMsg) error {
 }
 
 // ProcessRequest 分析处理请求逻辑
-func ProcessAi302Request(rmsg *dingbot.ReceiveMsg, model string, apiKey string, dingTalkClientID, dingTalkClientSecret string) error {
+func ProcessAi302Request(rmsg *dingbot.ReceiveMsg, model string, apiKey string, dingTalkClientID, dingTalkClientSecret string, toolID int) error {
 	if CheckRequestTimes(rmsg) {
 		content := strings.TrimSpace(rmsg.Text.Content)
 		timeoutStr := ""
@@ -184,9 +184,9 @@ func ProcessAi302Request(rmsg *dingbot.ReceiveMsg, model string, apiKey string, 
 			}
 		default:
 			if public.FirstCheck(rmsg) {
-				return DoAi302("串聊", rmsg, model, apiKey, dingTalkClientID, dingTalkClientSecret)
+				return DoAi302("串聊", rmsg, model, apiKey, dingTalkClientID, dingTalkClientSecret, toolID)
 			} else {
-				return DoAi302("单聊", rmsg, model, apiKey, dingTalkClientID, dingTalkClientSecret)
+				return DoAi302("单聊", rmsg, model, apiKey, dingTalkClientID, dingTalkClientSecret, toolID)
 			}
 		}
 	}
@@ -194,7 +194,7 @@ func ProcessAi302Request(rmsg *dingbot.ReceiveMsg, model string, apiKey string, 
 }
 
 // 执行处理请求
-func DoAi302(mode string, rmsg *dingbot.ReceiveMsg, model string, apiKey, dingTalkClientID, dingTalkClientSecret string) error {
+func DoAi302(mode string, rmsg *dingbot.ReceiveMsg, model string, apiKey, dingTalkClientID, dingTalkClientSecret string, toolID int) error {
 	// 先把模式注入
 	public.UserService.SetUserMode(rmsg.GetSenderIdentifier(), mode)
 	switch mode {
@@ -210,7 +210,7 @@ func DoAi302(mode string, rmsg *dingbot.ReceiveMsg, model string, apiKey, dingTa
 		if err != nil {
 			logger.Error("往MySQL新增数据失败,错误信息：", err)
 		}
-		reply, err := chatgpt.SingleQaAi302(rmsg.Text.Content, rmsg.GetSenderIdentifier(), model, apiKey, dingTalkClientID, dingTalkClientSecret)
+		reply, err := chatgpt.SingleQaAi302(rmsg.Text.Content, rmsg.GetSenderIdentifier(), model, apiKey, dingTalkClientID, dingTalkClientSecret, toolID)
 		if err != nil {
 			logger.Info(fmt.Errorf("gpt request error: %v", err))
 			if strings.Contains(fmt.Sprintf("%v", err), "maximum question length exceeded") {
@@ -271,7 +271,7 @@ func DoAi302(mode string, rmsg *dingbot.ReceiveMsg, model string, apiKey, dingTa
 		if err != nil {
 			logger.Error("往MySQL新增数据失败,错误信息：", err)
 		}
-		cli, reply, err := chatgpt.ContextQaAi302(rmsg.Text.Content, rmsg.GetSenderIdentifier(), model, apiKey, dingTalkClientID, dingTalkClientSecret)
+		cli, reply, err := chatgpt.ContextQaAi302(rmsg.Text.Content, rmsg.GetSenderIdentifier(), model, apiKey, dingTalkClientID, dingTalkClientSecret, toolID)
 		if err != nil {
 			logger.Info(fmt.Sprintf("gpt request error: %v", err))
 			if strings.Contains(fmt.Sprintf("%v", err), "maximum text length exceeded") {

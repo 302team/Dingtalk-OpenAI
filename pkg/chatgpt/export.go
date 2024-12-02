@@ -83,8 +83,8 @@ func ImageQa(ctx context.Context, question, userId string) (answer string, err e
 }
 
 // SingleQa 单聊
-func SingleQaAi302(question, userId, model, apiKey, dingTalkClientID, dingTalkClientSecret string) (answer string, err error) {
-	chat := NewAi302(userId, model, apiKey)
+func SingleQaAi302(question, userId, model, apiKey, dingTalkClientID, dingTalkClientSecret string, toolID int) (answer string, err error) {
+	chat := NewAi302(userId, model, apiKey, toolID)
 	defer chat.Close()
 	// 定义一个重试策略
 	retryStrategy := []retry.Option{
@@ -106,8 +106,8 @@ func SingleQaAi302(question, userId, model, apiKey, dingTalkClientID, dingTalkCl
 }
 
 // ContextQa 串聊
-func ContextQaAi302(question, userId, model, apiKey, dingTalkClientID, dingTalkClientSecret string) (chat *ChatGPT, answer string, err error) {
-	chat = NewAi302(userId, model, apiKey)
+func ContextQaAi302(question, userId, model, apiKey, dingTalkClientID, dingTalkClientSecret string, toolID int) (chat *ChatGPT, answer string, err error) {
+	chat = NewAi302(userId, model, apiKey, toolID)
 	if public.UserService.GetUserSessionContext(userId) != "" {
 		err := chat.ChatContext.LoadConversation(userId)
 		if err != nil {
@@ -132,8 +132,8 @@ func ContextQaAi302(question, userId, model, apiKey, dingTalkClientID, dingTalkC
 }
 
 // ImageQa 生成图片
-func ImageQaAi302(ctx context.Context, question, userId, model, apiKey string) (answer string, err error) {
-	chat := NewAi302(userId, model, apiKey)
+func ImageQaAi302(ctx context.Context, question, userId, model, apiKey string, toolID int) (answer string, err error) {
+	chat := NewAi302(userId, model, apiKey, toolID)
 	defer chat.Close()
 	// 定义一个重试策略
 	retryStrategy := []retry.Option{

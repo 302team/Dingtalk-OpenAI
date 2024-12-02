@@ -25,7 +25,7 @@ type ChatGPT struct {
 	ChatContext *ChatContext
 }
 
-func NewAi302(userId string, model string, apiKey string) *ChatGPT {
+func NewAi302(userId string, model string, apiKey string, toolID int) *ChatGPT {
 	var ctx context.Context
 	var cancel func()
 
@@ -37,7 +37,11 @@ func NewAi302(userId string, model string, apiKey string) *ChatGPT {
 	}()
 
 	config := openai.DefaultConfig(apiKey)
-	config.BaseURL = public.Config.BaseURL + "/v1"
+	if toolID != -2 {
+		config.BaseURL = public.Config.BaseURL + "/v1"
+	} else {
+		config.BaseURL = public.Config.BaseURL + "/302/kb"
+	}
 
 	return &ChatGPT{
 		client:         openai.NewClientWithConfig(config),

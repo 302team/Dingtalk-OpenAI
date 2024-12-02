@@ -467,7 +467,7 @@ func DoAi302Request(msgObj dingbot.ReceiveMsg, wehbookID string, c *gin.Context,
 				}
 				return
 			}
-			err = process.ProcessAi302Request(&msgObj, modelName, token.Value, robotMapping.DingtalkClientID, robotMapping.DingtalkClientSecret)
+			err = process.ProcessAi302Request(&msgObj, modelName, token.Value, robotMapping.DingtalkClientID, robotMapping.DingtalkClientSecret, tokenMapping.ToolID)
 			if err != nil {
 				logger.Warning(fmt.Errorf("process request: %v", err))
 				return

@@ -12,6 +12,7 @@ type TokenMapping struct {
 	IsRobot         int    `json:"is_robot"`
 	ModelID         int    `json:"model_id"`
 	GptsCode        string `json:"gpts_code"`
+	ToolID          int    `json:"tool_id"`
 }
 
 func (TokenMapping) TableName() string {
