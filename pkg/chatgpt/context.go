@@ -225,6 +225,7 @@ func (c *ChatGPT) ChatWithAi30Context(question string, model, dingTalkClientID, 
 	if err != nil {
 		return "", err
 	}
+	fmt.Printf("%+v\n", resp)
 	resp.Choices[0].Message.Content = formatAnswer(resp.Choices[0].Message.Content)
 	// 图床上传
 	bodyString := resp.Choices[0].Message.Content
