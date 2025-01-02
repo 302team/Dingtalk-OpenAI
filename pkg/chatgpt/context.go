@@ -221,6 +221,7 @@ func (c *ChatGPT) ChatWithAi30Context(question string, model, dingTalkClientID, 
 		Temperature: 0.6,
 		User:        userId,
 	}
+	fmt.Printf("%+v\n", req)
 	resp, err := c.client.CreateChatCompletion(c.ctx, req)
 	if err != nil {
 		return "", err
