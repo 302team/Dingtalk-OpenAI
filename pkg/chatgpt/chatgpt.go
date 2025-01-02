@@ -40,7 +40,7 @@ func NewAi302(userId string, model string, apiKey string, toolID int) *ChatGPT {
 	if toolID != -2 {
 		config.BaseURL = public.Config.BaseURL + "/v1"
 	} else {
-		config.BaseURL = public.Config.BaseURL + "/302/kb"
+		config.BaseURL = public.Config.BaseURL + "/302/kb/v1"
 	}
 
 	return &ChatGPT{
